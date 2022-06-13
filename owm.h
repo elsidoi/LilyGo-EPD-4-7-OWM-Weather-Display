@@ -22,4 +22,5 @@ private:
     bool obtainWeatherData(const String & RequestType);
     bool DecodeWeather(WiFiClient& json, String Type);
     void Convert_Readings_to_Imperial();
+    void Convert_Pressure_to_mm();
 };

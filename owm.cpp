@@ -12,6 +12,14 @@ static float hPa_to_inHg(float value_hPa) {
   return 0.02953 * value_hPa;
 }
 
+static float hPa_to_mmHg(float value_hPa) {
+  return 0.75 * value_hPa;
+}
+
+void OWM::Convert_Pressure_to_mm(){
+  WxConditions[0].Pressure = hPa_to_mmHg(WxConditions[0].Pressure);
+}
+
 void OWM::Convert_Readings_to_Imperial() { // Only the first 3-hours are used
   WxConditions[0].Pressure = hPa_to_inHg(WxConditions[0].Pressure);
   WxForecast[0].Rainfall   = mm_to_inches(WxForecast[0].Rainfall);
@@ -125,7 +133,10 @@ bool OWM::DecodeWeather(WiFiClient& json, String Type) {
     if (pressure_trend < 0)  WxConditions[0].Trend = "-";
     if (pressure_trend == 0) WxConditions[0].Trend = "0";
 
-    if (Units == "I") Convert_Readings_to_Imperial();
+    if (Units == "I") 
+      Convert_Readings_to_Imperial();
+    else
+      Convert_Pressure_to_mm();
   }
   return true;
 }

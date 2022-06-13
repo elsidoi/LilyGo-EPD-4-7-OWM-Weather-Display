@@ -11,11 +11,14 @@ const String TXT_HUMIDITY_PERCENT = "Влажность (%)";
 
 // Pressure
 const String TXT_PRESSURE         = "Давление";
-const String TXT_PRESSURE_HPA     = "Давление (гПА)";
+const String TXT_PRESSURE_HPA     = "Давление (мм рт. ст.)";
 const String TXT_PRESSURE_IN      = "Давление (дйюм)";
 const String TXT_PRESSURE_STEADY  = "Стабильно";
 const String TXT_PRESSURE_RISING  = "Повыш.";
 const String TXT_PRESSURE_FALLING = "Спадающ.";
+
+const String TXT_PRESSURE_UNITS_METRIC = "мм рт.cт.";
+const String TXT_PRESSURE_UNITS_IMPERIAL = "дюймов";
 
 //RainFall / SnowFall
 const String TXT_RAINFALL_MM = "Дождь (мм)";

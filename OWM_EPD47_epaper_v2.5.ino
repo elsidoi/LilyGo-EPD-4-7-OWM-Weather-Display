@@ -9,17 +9,14 @@
 #include "epd_driver.h"         // https://github.com/Xinyuan-LilyGO/LilyGo-EPD47
 #include "esp_adc_cal.h"        // In-built
 
-#include <ArduinoJson.h>        // https://github.com/bblanchon/ArduinoJson
-#include <HTTPClient.h>         // In-built
-
 #include <WiFi.h>               // In-built
-#include <SPI.h>                // In-built
 #include <time.h>               // In-built
 
 #include "owm_credentials.h"
 #include "forecast_record.h"
 #include "lang_ru.h"
 #include "owm.h"
+#include "graphics_engine.h"
 
 #define SCREEN_WIDTH   EPD_WIDTH
 #define SCREEN_HEIGHT  EPD_HEIGHT
@@ -28,7 +25,6 @@
 String version = "2.5 / 4.7in";  // Programme version, see change log at end
 //################ VARIABLES ##################################################
 
-enum alignment {LEFT, RIGHT, CENTER};
 #define White         0xFF
 #define LightGrey     0xBB
 #define Grey          0x88
@@ -65,9 +61,6 @@ long Delta           = 30; // ESP32 rtc speed compensation, prevents display at 
 #include "opensans12b.h"
 #include "opensans18b.h"
 #include "opensans24b.h"
-
-GFXfont  currentFont;
-uint8_t *framebuffer;
 
 void BeginSleep() {
   epd_poweroff_all();
@@ -122,9 +115,7 @@ void InitialiseSystem() {
   while (!Serial);
   Serial.println(String(__FILE__) + "\nStarting...");
   epd_init();
-  framebuffer = (uint8_t *)ps_calloc(sizeof(uint8_t), EPD_WIDTH * EPD_HEIGHT / 2);
-  if (!framebuffer) Serial.println("Memory alloc failed!");
-  memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
+  graphics_init();
 }
 
 void loop() {
@@ -215,9 +206,9 @@ void DisplayWeather() {                          // 4.7" e-paper display is 960x
   DisplayStatusSection(600, 20, wifi_signal);    // Wi-Fi signal strength and Battery voltage
   DisplayGeneralInfoSection();                   // Top line of the display
   DisplayDisplayWindSection(137, 150, owm.WxConditions[0].Winddir, owm.WxConditions[0].Windspeed, 100);
-  DisplayAstronomySection(5, 255);               // Astronomy section Sun rise/set, Moon phase and Moon icon
+  DisplayAstronomySection(10, 255);               // Astronomy section Sun rise/set, Moon phase and Moon icon
   DisplayWeatherIcon(370, 130);                  // Display weather icon    scale = Large;
-  DisplayMainWeatherSection(540, 110);           // Centre section of display for Location, temperature, Weather report, current Wx Symbol
+  DisplayMainWeatherSection(510, 70);           // Centre section of display for Location, temperature, Weather report, current Wx Symbol
   DisplayForecastSection(320, 220);              // 3hr forecast boxes
 }
 
@@ -234,9 +225,9 @@ void DisplayWeatherIcon(int x, int y) {
 
 void DisplayMainWeatherSection(int x, int y) {
   setFont(OpenSans8B);
-  DisplayTemperatureSection(x, y - 40);
-  DisplayForecastTextSection(x - 55, y + 25);
-  DisplayPressureSection(x - 25, y + 90, owm.WxConditions[0].Pressure, owm.WxConditions[0].Trend);
+  DisplayTemperatureSection(x, y);
+  DisplayForecastTextSection(x, y + 65);
+  DisplayPressureSection(x, y + 130, owm.WxConditions[0].Pressure, owm.WxConditions[0].Trend);
 }
 
 void DisplayDisplayWindSection(int x, int y, float angle, float windspeed, int Cradius) {
@@ -300,9 +291,9 @@ void DisplayTemperatureSection(int x, int y) {
   String plus;
   if (owm.WxConditions[0].Temperature > 0)
     plus= "+";
-  drawString(x - 30, y, plus + String(owm.WxConditions[0].Temperature, 1) + "°    " + String(owm.WxConditions[0].Humidity, 0) + "%", LEFT);
+  drawString(x, y, plus + String(owm.WxConditions[0].Temperature, 1) + "°    " + String(owm.WxConditions[0].Humidity, 0) + "%", LEFT);
   setFont(OpenSans12B);
-  drawString(x + 10, y + 35, String(owm.WxConditions[0].High, 0) + "° | " + String(owm.WxConditions[0].Low, 0) + "°", CENTER); // Show forecast high and Low
+  drawString(x, y + 35, String(owm.WxConditions[0].High, 0) + "° | " + String(owm.WxConditions[0].Low, 0) + "°", LEFT); // Show forecast high and Low
 }
 
 void DisplayForecastTextSection(int x, int y) {
@@ -321,22 +312,25 @@ void DisplayForecastTextSection(int x, int y) {
     p++;
     charCount++;
   }
-  if (owm.WxForecast[0].Rainfall > 0) Wx_Description += " (" + String(owm.WxForecast[0].Rainfall, 1) + String((Units == "M" ? "mm" : "in")) + ")";
+  if (owm.WxForecast[0].Rainfall > 0) 
+    Wx_Description += " (" + String(owm.WxForecast[0].Rainfall, 1) + String((Units == "M" ? "mm" : "in")) + ")";
   //Wx_Description = wordWrap(Wx_Description, lineWidth);
   String Line1 = Wx_Description.substring(0, Wx_Description.indexOf("~"));
   String Line2 = Wx_Description.substring(Wx_Description.indexOf("~") + 1);
-  drawString(x + 30, y + 5, TitleCase(Line1), LEFT);
-  if (Line1 != Line2) drawString(x + 30, y + 30, Line2, LEFT);
+  drawString(x, y + 5, TitleCase(Line1), LEFT);
+  if (Line1 != Line2) 
+    drawString(x, y + 30, Line2, LEFT);
 }
 
 void DisplayPressureSection(int x, int y, float pressure, String slope) {
   setFont(OpenSans12B);
-  DrawPressureAndTrend(x - 25, y + 10, pressure, slope);
-  if (owm.WxConditions[0].Visibility > 0) {
-    Visibility(x + 145, y, String(owm.WxConditions[0].Visibility) + "M");
-    x += 150; // Draw the text in the same positions if one is zero, otherwise in-line
-  }
-  if (owm.WxConditions[0].Cloudcover > 0) CloudCover(x + 145, y, owm.WxConditions[0].Cloudcover);
+  DrawPressureAndTrend(x, y + 10, pressure, slope);
+  // if (owm.WxConditions[0].Visibility > 0) {
+  //   Visibility(x + 190, y, String(owm.WxConditions[0].Visibility) + "M");
+  //   x += 150; // Draw the text in the same positions if one is zero, otherwise in-line
+  // }
+  // if (owm.WxConditions[0].Cloudcover > 0) 
+  //   CloudCover(x + 190, y, owm.WxConditions[0].Cloudcover);
 }
 
 void DisplayForecastWeather(int x, int y, int index) {
@@ -350,15 +344,15 @@ void DisplayForecastWeather(int x, int y, int index) {
 
 void DisplayAstronomySection(int x, int y) {
   setFont(OpenSans10B);
-  drawString(x + 5, y + 30, ConvertUnixTime(owm.WxConditions[0].Sunrise).substring(0, 5) + " " + TXT_SUNRISE, LEFT);
-  drawString(x + 5, y + 55, ConvertUnixTime(owm.WxConditions[0].Sunset).substring(0, 5) + " " + TXT_SUNSET, LEFT);
+  drawString(x, y + 30, ConvertUnixTime(owm.WxConditions[0].Sunrise).substring(0, 5) + " " + TXT_SUNRISE, LEFT);
+  drawString(x, y + 55, ConvertUnixTime(owm.WxConditions[0].Sunset).substring(0, 5) + " " + TXT_SUNSET, LEFT);
   time_t now = time(NULL);
   struct tm * now_utc  = gmtime(&now);
   const int day_utc    = now_utc->tm_mday;
   const int month_utc  = now_utc->tm_mon + 1;
   const int year_utc   = now_utc->tm_year + 1900;
-  drawString(x + 5, y + 70, MoonPhase(day_utc, month_utc, year_utc, Hemisphere), LEFT);
-  DrawMoon(x + 160, y - 15, day_utc, month_utc, year_utc, Hemisphere);
+  drawString(x, y + 70, MoonPhase(day_utc, month_utc, year_utc, Hemisphere), LEFT);
+  DrawMoon(x + 155, y - 15, day_utc, month_utc, year_utc, Hemisphere);
 }
 
 void DrawMoon(int x, int y, int dd, int mm, int yy, String hemisphere) {
@@ -498,7 +492,7 @@ void DrawSegment(int x, int y, int o1, int o2, int o3, int o4, int o11, int o12,
 }
 
 void DrawPressureAndTrend(int x, int y, float pressure, String slope) {
-  drawString(x + 25, y - 10, String(pressure, (Units == "M" ? 0 : 1)) + (Units == "M" ? "hPa" : "in"), LEFT);
+  drawString(x + 25, y - 10, String(pressure, (Units == "M" ? 0 : 1)) + (Units == "M" ? TXT_PRESSURE_UNITS_METRIC : TXT_PRESSURE_UNITS_IMPERIAL), LEFT);
   if      (slope == "+") {
     DrawSegment(x, y, 0, 0, 8, -8, 8, -8, 16, 0);
     DrawSegment(x - 1, y, 0, 0, 8, -8, 8, -8, 16, 0);
@@ -912,62 +906,7 @@ void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float
   }
 }
 
-void drawString(int x, int y, String text, alignment align) {
-  char * data  = const_cast<char*>(text.c_str());
-  int  x1, y1; //the bounds of x,y and w and h of the variable 'text' in pixels.
-  int w, h;
-  int xx = x, yy = y;
-  get_text_bounds(&currentFont, data, &xx, &yy, &x1, &y1, &w, &h, NULL);
-  if (align == RIGHT)  x = x - w;
-  if (align == CENTER) x = x - w / 2;
-  int cursor_y = y + h;
-  write_string(&currentFont, data, &x, &cursor_y, framebuffer);
-}
 
-void fillCircle(int x, int y, int r, uint8_t color) {
-  epd_fill_circle(x, y, r, color, framebuffer);
-}
-
-void drawFastHLine(int16_t x0, int16_t y0, int length, uint16_t color) {
-  epd_draw_hline(x0, y0, length, color, framebuffer);
-}
-
-void drawFastVLine(int16_t x0, int16_t y0, int length, uint16_t color) {
-  epd_draw_vline(x0, y0, length, color, framebuffer);
-}
-
-void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color) {
-  epd_write_line(x0, y0, x1, y1, color, framebuffer);
-}
-
-void drawCircle(int x0, int y0, int r, uint8_t color) {
-  epd_draw_circle(x0, y0, r, color, framebuffer);
-}
-
-void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
-  epd_draw_rect(x, y, w, h, color, framebuffer);
-}
-
-void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
-  epd_fill_rect(x, y, w, h, color, framebuffer);
-}
-
-void fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
-                  int16_t x2, int16_t y2, uint16_t color) {
-  epd_fill_triangle(x0, y0, x1, y1, x2, y2, color, framebuffer);
-}
-
-void drawPixel(int x, int y, uint8_t color) {
-  epd_draw_pixel(x, y, color, framebuffer);
-}
-
-void setFont(GFXfont const &font) {
-  currentFont = font;
-}
-
-void edp_update() {
-  epd_draw_grayscale_image(epd_full_screen(), framebuffer); // Update the screen
-}
 /*
    1085 lines of code 28-01-2021
 */
