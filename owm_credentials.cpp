@@ -3,8 +3,8 @@
 const bool DebugDisplayUpdate = false;
 
 // Change to your WiFi credentials
-const char* ssid     = "masha2";
-const char* password = "justintimberlake";
+const char* ssid     = "ssid";
+const char* password = "password";
 
 // Use your own API key by signing up for a free developer account at https://openweathermap.org/
 String apikey       = "your openweathermap token here";                      // See: https://openweathermap.org/
